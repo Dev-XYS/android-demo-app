@@ -1,5 +1,6 @@
 package org.pytorch.demo.vision;
 
+import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.text.TextUtils;
@@ -7,6 +8,7 @@ import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewStub;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import org.pytorch.IValue;
@@ -33,8 +35,8 @@ public class ImageClassificationActivity extends AbstractCameraXActivity<ImageCl
   public static final String INTENT_MODULE_ASSET_NAME = "INTENT_MODULE_ASSET_NAME";
   public static final String INTENT_INFO_VIEW_TYPE = "INTENT_INFO_VIEW_TYPE";
 
-  private static final int INPUT_TENSOR_WIDTH = 224;
-  private static final int INPUT_TENSOR_HEIGHT = 224;
+  private static final int INPUT_TENSOR_WIDTH = 256;
+  private static final int INPUT_TENSOR_HEIGHT = 256;
   private static final int TOP_K = 3;
   private static final int MOVING_AVG_PERIOD = 10;
   private static final String FORMAT_MS = "%dms";
@@ -45,13 +47,17 @@ public class ImageClassificationActivity extends AbstractCameraXActivity<ImageCl
 
   static class AnalysisResult {
 
+    private final Bitmap bitmap;
+
     private final String[] topNClassNames;
     private final float[] topNScores;
     private final long analysisDuration;
     private final long moduleForwardDuration;
 
-    public AnalysisResult(String[] topNClassNames, float[] topNScores,
+    public AnalysisResult(Bitmap bitmap, String[] topNClassNames, float[] topNScores,
                           long moduleForwardDuration, long analysisDuration) {
+      this.bitmap = bitmap;
+
       this.topNClassNames = topNClassNames;
       this.topNScores = topNScores;
       this.moduleForwardDuration = moduleForwardDuration;
@@ -61,6 +67,7 @@ public class ImageClassificationActivity extends AbstractCameraXActivity<ImageCl
 
   private boolean mAnalyzeImageErrorState;
   private ResultRowView[] mResultRowViews = new ResultRowView[TOP_K];
+  private ImageView mImageView;
   private TextView mFpsText;
   private TextView mMsText;
   private TextView mMsAvgText;
@@ -77,13 +84,6 @@ public class ImageClassificationActivity extends AbstractCameraXActivity<ImageCl
   }
 
   @Override
-  protected TextureView getCameraPreviewTextureView() {
-    return ((ViewStub) findViewById(R.id.image_classification_texture_view_stub))
-        .inflate()
-        .findViewById(R.id.image_classification_texture_view);
-  }
-
-  @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     final ResultRowView headerResultRowView =
@@ -95,6 +95,7 @@ public class ImageClassificationActivity extends AbstractCameraXActivity<ImageCl
     mResultRowViews[1] = findViewById(R.id.image_classification_top2_result_row);
     mResultRowViews[2] = findViewById(R.id.image_classification_top3_result_row);
 
+    mImageView = findViewById(R.id.image_view);
     mFpsText = findViewById(R.id.image_classification_fps_text);
     mMsText = findViewById(R.id.image_classification_ms_text);
     mMsAvgText = findViewById(R.id.image_classification_ms_avg_text);
@@ -107,6 +108,8 @@ public class ImageClassificationActivity extends AbstractCameraXActivity<ImageCl
     if (mMovingAvgQueue.size() > MOVING_AVG_PERIOD) {
       mMovingAvgSum -= mMovingAvgQueue.remove();
     }
+
+    mImageView.setImageBitmap(result.bitmap);
 
     for (int i = 0; i < TOP_K; i++) {
       final ResultRowView rowView = mResultRowViews[i];
@@ -179,21 +182,29 @@ public class ImageClassificationActivity extends AbstractCameraXActivity<ImageCl
           mInputTensorBuffer, 0);
 
       final long moduleForwardStartTime = SystemClock.elapsedRealtime();
-      final Tensor outputTensor = mModule.forward(IValue.from(mInputTensor)).toTensor();
+//      final Tensor outputTensor = mModule.forward(IValue.from(mInputTensor)).toTensor();
+
+      for (int i = 0; i < 1000; i++) {
+        if (mInputTensorBuffer.get(i) != mInputTensorBuffer.get(i + 1)) {
+          throw new Exception();
+        }
+      }
+
+      Bitmap bitmap = Bitmap.createBitmap(INPUT_TENSOR_WIDTH, INPUT_TENSOR_HEIGHT, Bitmap.Config.ARGB_8888);
+      final int size = INPUT_TENSOR_WIDTH * INPUT_TENSOR_HEIGHT;
+      for (int i = 0; i < size; i++) {
+        final int x = i / INPUT_TENSOR_WIDTH;
+        final int y = i % INPUT_TENSOR_HEIGHT;
+        final int r = (int) (mInputTensorBuffer.get(i) * 128);
+        final int g = (int) (mInputTensorBuffer.get(size + i) * 128);
+        final int b = (int) (mInputTensorBuffer.get(size * 2 + i) * 128);
+        bitmap.setPixel(x, y, (r << 24) | (g << 16) | (b << 8) | 0xFF);
+      }
+
       final long moduleForwardDuration = SystemClock.elapsedRealtime() - moduleForwardStartTime;
 
-      final float[] scores = outputTensor.getDataAsFloatArray();
-      final int[] ixs = Utils.topK(scores, TOP_K);
-
-      final String[] topKClassNames = new String[TOP_K];
-      final float[] topKScores = new float[TOP_K];
-      for (int i = 0; i < TOP_K; i++) {
-        final int ix = ixs[i];
-        topKClassNames[i] = Constants.IMAGENET_CLASSES[ix];
-        topKScores[i] = scores[ix];
-      }
       final long analysisDuration = SystemClock.elapsedRealtime() - startTime;
-      return new AnalysisResult(topKClassNames, topKScores, moduleForwardDuration, analysisDuration);
+      return new AnalysisResult(bitmap, new String[] { "a", "b", "c" }, new float[] { 1.0f, 1.0f, 1.0f }, moduleForwardDuration, analysisDuration);
     } catch (Exception e) {
       Log.e(Constants.TAG, "Error during image analysis", e);
       mAnalyzeImageErrorState = true;

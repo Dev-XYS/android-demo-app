@@ -15,6 +15,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.viewpager.widget.PagerAdapter;
 import androidx.viewpager.widget.ViewPager;
 
+import org.pytorch.demo.vision.ImageClassificationActivity;
+import org.pytorch.demo.vision.VisionListActivity;
+
 public class WelcomeActivity extends AppCompatActivity {
 
   private ViewPager mViewPager;
@@ -61,6 +64,12 @@ public class WelcomeActivity extends AppCompatActivity {
 
     mTabLayout = findViewById(R.id.welcome_tab_layout);
     mTabLayout.setupWithViewPager(mViewPager);
+
+    final Intent intent = new Intent(this, ImageClassificationActivity.class);
+    intent.putExtra(ImageClassificationActivity.INTENT_MODULE_ASSET_NAME, "resnet18.pt");
+    intent.putExtra(ImageClassificationActivity.INTENT_INFO_VIEW_TYPE,
+            InfoViewFactory.INFO_VIEW_TYPE_IMAGE_CLASSIFICATION_RESNET);
+    startActivity(intent);
   }
 
   private class WelcomeViewPagerAdapter extends PagerAdapter {
