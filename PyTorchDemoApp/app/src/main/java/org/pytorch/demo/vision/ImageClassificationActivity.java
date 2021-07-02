@@ -35,8 +35,8 @@ public class ImageClassificationActivity extends AbstractCameraXActivity<ImageCl
   public static final String INTENT_MODULE_ASSET_NAME = "INTENT_MODULE_ASSET_NAME";
   public static final String INTENT_INFO_VIEW_TYPE = "INTENT_INFO_VIEW_TYPE";
 
-  private static final int INPUT_TENSOR_WIDTH = 256;
-  private static final int INPUT_TENSOR_HEIGHT = 256;
+  private static final int INPUT_TENSOR_WIDTH = 224;
+  private static final int INPUT_TENSOR_HEIGHT = 224;
   private static final int TOP_K = 3;
   private static final int MOVING_AVG_PERIOD = 10;
   private static final String FORMAT_MS = "%dms";
@@ -151,7 +151,7 @@ public class ImageClassificationActivity extends AbstractCameraXActivity<ImageCl
 
   @Override
   protected String getInfoViewAdditionalText() {
-    return getModuleAssetName();
+    return "\nModel file name: " + getModuleAssetName();
   }
 
   @Override
@@ -166,6 +166,8 @@ public class ImageClassificationActivity extends AbstractCameraXActivity<ImageCl
       if (mModule == null) {
         final String moduleFileAbsoluteFilePath = new File(
             Utils.assetFilePath(this, getModuleAssetName())).getAbsolutePath();
+        Log.d("debug", getModuleAssetName());
+        Log.d("debug", moduleFileAbsoluteFilePath);
         mModule = Module.load(moduleFileAbsoluteFilePath);
 
         mInputTensorBuffer =
@@ -177,28 +179,39 @@ public class ImageClassificationActivity extends AbstractCameraXActivity<ImageCl
       TensorImageUtils.imageYUV420CenterCropToFloatBuffer(
           image.getImage(), rotationDegrees,
           INPUT_TENSOR_WIDTH, INPUT_TENSOR_HEIGHT,
-          TensorImageUtils.TORCHVISION_NORM_MEAN_RGB,
-          TensorImageUtils.TORCHVISION_NORM_STD_RGB,
+          new float[] { 0.5f, 0.5f, 0.5f },
+          new float[] { 0.5f, 0.5f, 0.5f },
           mInputTensorBuffer, 0);
 
       final long moduleForwardStartTime = SystemClock.elapsedRealtime();
-//      final Tensor outputTensor = mModule.forward(IValue.from(mInputTensor)).toTensor();
 
-      for (int i = 0; i < 1000; i++) {
-        if (mInputTensorBuffer.get(i) != mInputTensorBuffer.get(i + 1)) {
-          throw new Exception();
+      final FloatBuffer InputTensorBuffer =
+              Tensor.allocateFloatBuffer(3 * 256 * 256);
+
+      for (int i = 0; i < 224; i++) {
+        for (int j = 0; j < 224; j++) {
+          InputTensorBuffer.put((j + 16) * 256 + i + 16, mInputTensorBuffer.get(j * 224 + i));
         }
       }
+
+      final Tensor InputTensor = Tensor.fromBlob(InputTensorBuffer, new long[]{1, 3, 256, 256});
+
+      final Tensor outputTensor = mModule.forward(IValue.from(mInputTensor)).toTensor();
+      float[] outputArray = outputTensor.getDataAsFloatArray();
 
       Bitmap bitmap = Bitmap.createBitmap(INPUT_TENSOR_WIDTH, INPUT_TENSOR_HEIGHT, Bitmap.Config.ARGB_8888);
       final int size = INPUT_TENSOR_WIDTH * INPUT_TENSOR_HEIGHT;
       for (int i = 0; i < size; i++) {
-        final int x = i / INPUT_TENSOR_WIDTH;
-        final int y = i % INPUT_TENSOR_HEIGHT;
-        final int r = (int) (mInputTensorBuffer.get(i) * 128);
-        final int g = (int) (mInputTensorBuffer.get(size + i) * 128);
-        final int b = (int) (mInputTensorBuffer.get(size * 2 + i) * 128);
-        bitmap.setPixel(x, y, (r << 24) | (g << 16) | (b << 8) | 0xFF);
+        final int x = i % INPUT_TENSOR_WIDTH;
+        final int y = i / INPUT_TENSOR_HEIGHT;
+//        final int b = (int) ((mInputTensorBuffer.get(i) * 0.5 + 0.5) * 255);
+//        final int g = (int) ((mInputTensorBuffer.get(size + i) * 0.5 + 0.5) * 255);
+//        final int r = (int) ((mInputTensorBuffer.get(size * 2 + i) * 0.5 + 0.5) * 255);
+        final int r = (int) ((outputArray[i] * 0.5 + 0.5) * 255);
+        final int g = (int) ((outputArray[size + i] * 0.5 + 0.5) * 255);
+        final int b = (int) ((outputArray[size * 2 + i] * 0.5 + 0.5) * 255);
+        final int c = (r + g + b) / 3;
+        bitmap.setPixel(x, y, 0xFF000000 | (c << 16) | (c << 8) | c);
       }
 
       final long moduleForwardDuration = SystemClock.elapsedRealtime() - moduleForwardStartTime;

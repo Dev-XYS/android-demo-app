@@ -54,19 +54,20 @@ public class WelcomeActivity extends AppCompatActivity {
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-    setContentView(R.layout.activity_welcome);
-
-    findViewById(R.id.skip_button).setOnClickListener(v -> startActivity(new Intent(WelcomeActivity.this, MainActivity.class)));
-
-    mViewPager = findViewById(R.id.welcome_view_pager);
-    mViewPagerAdapter = new WelcomeViewPagerAdapter();
-    mViewPager.setAdapter(mViewPagerAdapter);
-
-    mTabLayout = findViewById(R.id.welcome_tab_layout);
-    mTabLayout.setupWithViewPager(mViewPager);
+//    setContentView(R.layout.activity_welcome);
+//
+//    findViewById(R.id.skip_button).setOnClickListener(v -> startActivity(new Intent(WelcomeActivity.this, MainActivity.class)));
+//
+//    mViewPager = findViewById(R.id.welcome_view_pager);
+//    mViewPagerAdapter = new WelcomeViewPagerAdapter();
+//    mViewPager.setAdapter(mViewPagerAdapter);
+//
+//    mTabLayout = findViewById(R.id.welcome_tab_layout);
+//    mTabLayout.setupWithViewPager(mViewPager);
 
     final Intent intent = new Intent(this, ImageClassificationActivity.class);
-    intent.putExtra(ImageClassificationActivity.INTENT_MODULE_ASSET_NAME, "resnet18.pt");
+    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+    intent.putExtra(ImageClassificationActivity.INTENT_MODULE_ASSET_NAME, "g21-r1.0-e1.0-35000.pt");
     intent.putExtra(ImageClassificationActivity.INTENT_INFO_VIEW_TYPE,
             InfoViewFactory.INFO_VIEW_TYPE_IMAGE_CLASSIFICATION_RESNET);
     startActivity(intent);
